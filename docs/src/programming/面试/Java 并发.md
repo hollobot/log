@@ -883,7 +883,21 @@ class Main{
 
 - Callable接口方法是`call()`，Runnable的方法是`run()`；
 - Callable接口call方法有返回值，支持泛型，Runnable接口run方法无返回值。
-- Callable接口`call()`方法允许抛出异常；而Runnable接口`run()`方法不能继续上抛异常。
+- Callable接口`call()`方法允许抛出异常；而Runnable接口`run()`方法不能向上抛异常。原因是因为源码接口方法就没有抛出异常，所以实现的方法也无法显示的抛出异常。
+
+  ```java
+  @FunctionalInterface
+  public interface Runnable {
+      public abstract void run();
+  }
+  
+  @FunctionalInterface
+  public interface Callable<V> {
+      V call() throws Exception;
+  }
+  ```
+
+  
 
 
 
