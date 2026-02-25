@@ -195,21 +195,22 @@ System.out.println(t.getState()); // terminated
 
 **面试常考点**
 
-**NEW 和 RUNNABLE 的区别？**
+**new和 runnable的区别？**
 
-- NEW：对象创建还未 start()
-- RUNNABLE：调用了 start()，进入就绪队列等待 CPU 调度
+- new：对象创建还未 start()
+- runnable：调用了 start()，进入就绪队列等待 CPU 调度
 
-**WAITING 和 TIMED_WAITING 区别？**
+**waiting 和 timed_waiting区别？**
 
-- WAITING：无限期等待，必须 notify/notifyAll 唤醒
-- TIMED_WAITING：有超时时间，到期自动恢复 RUNNABLE
+- waiting ：无限期等待，必须 notify/notifyAll 唤醒
+- timed_waiting：有超时时间，到期自动恢复 runnable，比如 `sleep(long millis)`、`join(long millis)`、`wait(long millis)`
 
-**BLOCKED 和 WAITING 区别？**
+**blocked 和 waiting 区别？**
 
-- BLOCKED：等待 **获取锁**
+- blocked ：等待 **获取锁**
 
-WAITING：等待 **被唤醒（notify/notifyAll）**
+- waiting ：等待 **被唤醒（notify/notifyAll）** 被唤醒之后会进入`blocked` 等待状态。
+
 
 
 
