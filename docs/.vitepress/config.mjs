@@ -417,6 +417,10 @@ export default defineConfig({
                   link: "/programming/面试/Spring 面试题",
                 },
                 {
+                  text: "计算机网络",
+                  link: "/programming/面试/计算机网络",
+                },
+                {
                   text: "Vue 面试",
                   link: "/programming/面试/Vue 面试",
                 },

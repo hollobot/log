@@ -68,6 +68,8 @@ features:
 ::: timeline 2023-04-23
 :::
 
+
+
 ## 任务列表
 - [ ] 吃饭
 - [ ] 睡觉
@@ -88,3 +90,16 @@ yarn -v
 bun -v
 ```
 :::
+
+
+
+
+
+## 面试
+
+::: timeline 2026-02-26
+- 泛微网络科技股份有限公司
+- 岗位 后端开发
+- 面试记录 https://l0x09m00y4c.feishu.cn/docx/XKqvdetNboZQhJxwdLbc2ArxnAh
+:::
+
