@@ -738,3 +738,208 @@ Spring 和 IDEA 不推荐使用 `@Autowired` 注解（更准确地说，是不�
 5. **类型匹配易冲突**`@Autowired` 默认按类型（ByType）注入，若容器中存在多个同类型的 Bean，会导致装配失败，需要额外配合 `@Qualifier` 指定名称，增加复杂度。
 
 相比之下，**构造器注入**能显式声明依赖、确保依赖在对象创建时初始化、便于测试且能暴露循环依赖问题，因此被推荐为更优的注入方式。IDEA 的警告本质是引导开发者遵循更规范的依赖注入设计原则。
+
+
+
+## 32. SpringBoot项目怎么配置配置多个数据库源？
+
+#### 一、核心思路
+
+多数据源配置的核心是：
+
+1. 配置多个数据源的连接信息（URL、用户名、密码）；
+2. 为每个数据源创建独立的 `DataSource`、`SqlSessionFactory`、`SqlSessionTemplate`；
+3. 通过「包路径 / 注解」隔离不同数据源的 Mapper，避免冲突。
+
+#### 二、完整配置步骤（以 2 个 MySQL 库为例）
+
+**步骤 1：添加核心依赖（pom.xml）**
+
+确保引入 MyBatis + 数据库驱动（这里用 MySQL，其他库替换驱动即可）：
+
+```xml
+<!-- MyBatis 整合 Spring Boot -->
+<dependency>
+    <groupId>org.mybatis.spring.boot</groupId>
+    <artifactId>mybatis-spring-boot-starter</artifactId>
+    <version>2.3.0</version>
+</dependency>
+<!-- MySQL 驱动 -->
+<dependency>
+    <groupId>com.mysql.cj</groupId>
+    <artifactId>mysql-connector-java</artifactId>
+    <scope>runtime</scope>
+</dependency>
+<!-- 数据源配置核心依赖 -->
+<dependency>
+    <groupId>com.zaxxer</groupId>
+    <artifactId>HikariCP</artifactId>
+</dependency>
+```
+
+**步骤 2：配置文件（application.yml）**
+
+添加两个数据源的连接信息，区分主库（primary）和从库 / 第二个库（secondary）：
+
+```yaml
+spring:
+  # 多数据源配置
+  datasource:
+    # 第一个数据源（主库：db1）
+    primary:
+      jdbc-url: jdbc:mysql://localhost:3306/db1
+      username: root
+      password: 123456
+      driver-class-name: com.mysql.cj.jdbc.Driver
+    # 第二个数据源（从库：db2）
+    secondary:
+      jdbc-url: jdbc:mysql://localhost:3306/db2
+      username: root
+      password: 123456
+      driver-class-name: com.mysql.cj.jdbc.Driver
+
+# MyBatis 全局配置（可选）
+mybatis:
+  configuration:
+    map-underscore-to-camel-case: true # 数据库字段 user_name → 实体类属性 userName
+  type-aliases-package: com.example.demo.entity
+```
+
+**步骤 3：数据源配置类（核心）**
+
+创建两个配置类，分别对应两个数据源，通过 `@MapperScan` 隔离 Mapper 包路径：
+
+配置 1：主数据源（db1）
+
+```java
+// 扫描 db1 的 Mapper 包，指定 sqlSessionFactory 为 primarySqlSessionFactory
+@Configuration
+@MapperScan(basePackages = "com.example.demo.mapper.primary", 
+            sqlSessionFactoryRef = "primarySqlSessionFactory")
+public class PrimaryDataSourceConfig {
+
+    // 1. 创建主数据源（@Primary 标记默认数据源）
+    @Bean(name = "primaryDataSource")
+    @Primary
+    @ConfigurationProperties(prefix = "spring.datasource.primary") // 读取yaml对应的数据源配置
+    public DataSource primaryDataSource() {
+        return DataSourceBuilder.create().build();
+    }
+
+    // 2. 创建主库的 SqlSessionFactory
+    @Bean(name = "primarySqlSessionFactory")
+    @Primary
+    public SqlSessionFactory primarySqlSessionFactory(@Qualifier("primaryDataSource") DataSource dataSource) throws Exception {
+        SqlSessionFactoryBean bean = new SqlSessionFactoryBean();
+        bean.setDataSource(dataSource);
+        // 若有 MyBatis 配置文件，添加：bean.setConfigLocation(new ClassPathResource("mybatis-config.xml"));
+        // 若有 Mapper XML，添加：bean.setMapperLocations(new PathMatchingResourcePatternResolver().getResources("classpath:mapper/primary/*.xml"));
+        return bean.getObject();
+    }
+
+    // 3. 创建事务管理器
+    @Bean(name = "primaryTransactionManager")
+    @Primary
+    public DataSourceTransactionManager primaryTransactionManager(@Qualifier("primaryDataSource") DataSource dataSource) {
+        return new DataSourceTransactionManager(dataSource);
+    }
+
+    // 4. 创建 SqlSessionTemplate
+    @Bean(name = "primarySqlSessionTemplate")
+    @Primary
+    public SqlSessionTemplate primarySqlSessionTemplate(@Qualifier("primarySqlSessionFactory") SqlSessionFactory sqlSessionFactory) {
+        return new SqlSessionTemplate(sqlSessionFactory);
+    }
+}
+```
+
+配置 2：第二个数据源（db2）
+
+```java
+// 扫描 db2 的 Mapper 包，隔离主库
+@Configuration
+@MapperScan(basePackages = "com.example.demo.mapper.secondary", 
+            sqlSessionFactoryRef = "secondarySqlSessionFactory")
+public class SecondaryDataSourceConfig {
+
+    @Bean(name = "secondaryDataSource")
+    @ConfigurationProperties(prefix = "spring.datasource.secondary")
+    public DataSource secondaryDataSource() {
+        return DataSourceBuilder.create().build();
+    }
+
+    @Bean(name = "secondarySqlSessionFactory")
+    public SqlSessionFactory secondarySqlSessionFactory(@Qualifier("secondaryDataSource") DataSource dataSource) throws Exception {
+        SqlSessionFactoryBean bean = new SqlSessionFactoryBean();
+        bean.setDataSource(dataSource);
+        // 若有 db2 的 Mapper XML，添加：bean.setMapperLocations(new PathMatchingResourcePatternResolver().getResources("classpath:mapper/secondary/*.xml"));
+        return bean.getObject();
+    }
+
+    @Bean(name = "secondaryTransactionManager")
+    public DataSourceTransactionManager secondaryTransactionManager(@Qualifier("secondaryDataSource") DataSource dataSource) {
+        return new DataSourceTransactionManager(dataSource);
+    }
+
+    @Bean(name = "secondarySqlSessionTemplate")
+    public SqlSessionTemplate secondarySqlSessionTemplate(@Qualifier("secondarySqlSessionFactory") SqlSessionFactory sqlSessionFactory) {
+        return new SqlSessionTemplate(sqlSessionFactory);
+    }
+}
+```
+
+**步骤 4：隔离 Mapper 目录（关键）**
+
+按配置类中 `@MapperScan` 的包路径，创建独立的 Mapper 目录结构：
+
+```markdown
+src/main/java/com/example/demo/
+├── mapper/
+│   ├── primary/       # 主库（db1）的 Mapper 接口
+│   │   └── UserMapper.java
+│   └── secondary/     # 第二个库（db2）的 Mapper 接口
+│       └── OrderMapper.java
+src/main/resources/
+├── mapper/（若用 XML 映射）
+│   ├── primary/
+│   │   └── UserMapper.xml
+│   └── secondary/
+│       └── OrderMapper.xml
+```
+
+**步骤 5：使用示例**
+
+直接在 Service 中注入对应 Mapper 即可，框架会自动关联数据源：
+
+```java
+@Service
+public class TestService {
+    @Resource // 注入主库 Mapper
+    private UserMapper userMapper;
+    
+    @Resource // 注入第二个库 Mapper
+    private OrderMapper orderMapper;
+
+    public void test() {
+        userMapper.selectById(1); // 操作 db1 库
+        orderMapper.selectById(1);  // 操作 db2 库
+    }
+}
+```
+
+#### 三、关键注意事项
+
+- **@Primary 必须加**：指定默认数据源，避免 Spring 无法识别主数据源导致报错；
+
+- **Mapper 包隔离**：`@MapperScan` 的 `basePackages` 必须严格区分，否则 Mapper 会绑定错误数据源；
+
+- **事务管理**：不同数据源的事务需用对应事务管理器，比如操作 db2 时指定事务管理器：
+
+  ```java
+  @Transactional(transactionManager = "secondaryTransactionManager")
+  public void updateOrder() {
+      orderMapper.updateById(1);
+  }
+  ```
+
+  

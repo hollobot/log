@@ -134,6 +134,105 @@ System.out.println(list); // 输出：[A, C, D]
 
 
 
+## 4-1.数组和Arraylist集合怎么相互转换？
+
+#### **一、数组 → ArrayList（两种常用方式）**
+
+**方式 1：Arrays.asList ()（最简单，注意坑点）**
+
+这是 JDK 原生方法，直接将数组转为 List，但返回的是 `Arrays` 内部的固定长度 List（不是真正的 ArrayList），不能执行 add/remove 操作。
+
+```java
+import java.util.Arrays;
+import java.util.List;
+
+public class ArrayToList {
+    public static void main(String[] args) {
+        // 1. 原始数组（以 String 数组为例，基本类型数组需注意）
+        String[] strArray = {"Java", "Python", "C++"};
+        
+        // 2. 数组转 List（核心方法）
+        List<String> strList = Arrays.asList(strArray);
+        
+        // ✅ 支持遍历、查询
+        System.out.println(strList); // 输出：[Java, Python, C++]
+        
+        // ❌ 不支持添加/删除（会抛 UnsupportedOperationException）
+        // strList.add("Go"); 
+        
+        // 【避坑】如果需要可修改的 ArrayList，需再包装一层
+        List<String> arrayList = new ArrayList<>(strList);
+        arrayList.add("Go"); // ✅ 正常执行
+        System.out.println(arrayList); // 输出：[Java, Python, C++, Go]
+    }
+}
+```
+
+**方式 2：Collections.addAll ()（推荐，直接转可修改的 ArrayList）**
+
+适合需要直接得到 “可增删” 的 ArrayList 场景，效率比 `new ArrayList(Arrays.asList())` 更高。
+
+```java
+import java.util.ArrayList;
+import java.util.Collections;
+
+public class ArrayToList2 {
+    public static void main(String[] args) {
+        String[] strArray = {"Java", "Python", "C++"};
+        
+        // 1. 创建空的 ArrayList
+        List<String> arrayList = new ArrayList<>();
+        
+        // 2. 批量添加数组元素到集合
+        Collections.addAll(arrayList, strArray);
+        
+        // ✅ 支持所有 ArrayList 操作
+        arrayList.add("Go");
+        arrayList.remove(0);
+        System.out.println(arrayList); // 输出：[Python, C++, Go]
+    }
+}
+```
+
+#### 二、ArrayList → 数组（两种常用方式）
+
+**方式 1：ArrayList.toArray (T [] a)（带参，指定类型，推荐）**
+
+指定数组类型，直接返回对应类型的数组，安全且规范，是实际开发的首选。
+
+```java
+import java.util.ArrayList;
+import java.util.List;
+
+public class ListToArray2 {
+    public static void main(String[] args) {
+        List<String> list = new ArrayList<>();
+        list.add("Java");
+        list.add("Python");
+        list.add("C++");
+        
+        // 方式 1：传入长度为 0 的数组（JDK 1.8+ 推荐，JVM 自动优化长度）
+        String[] strArray1 = list.toArray(new String[0]);
+        System.out.println(strArray1.length); // 输出：3
+        
+        // 方式 2：传入和集合长度一致的数组（旧版本推荐，减少数组拷贝）
+        String[] strArray2 = list.toArray(new String[list.size()]);
+        System.out.println(strArray2[1]); // 输出：Python
+        
+        // 【基本类型集合转数组】（以 Integer 集合转 int 数组为例）
+        List<Integer> intList = new ArrayList<>();
+        intList.add(1);
+        intList.add(2);
+        int[] intArray = intList.stream()
+                                .mapToInt(Integer::intValue)
+                                .toArray();
+        System.out.println(intArray[0]); // 输出：1
+    }
+}
+```
+
+
+
 ##  5. Arraylist 和 Vector 的区别？
 
 `ArrayList` 和 `Vector` 都是 Java 集合框架中 `List` 接口的实现类，底层均基于**动态数组**实现，支持有序、可重复、允许 `null` 的元素存储，但二者在**线程安全性、性能、扩容机制**等核心维度存在显著差异，以下是详细对比：

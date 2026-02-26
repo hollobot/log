@@ -1698,3 +1698,81 @@ MySQL 的 binlog（二进制日志）有三种格式，分别是**statement**、
 3. **规范性**用 CHAR (32) 能明确表结构中该字段的用途（MD5 值），避免他人误解为 “可能变长的字符串”，提升代码可读性。
 
 综上，存储 MD5 值优先选择**CHAR(32)**，匹配其固定长度特性，兼顾性能与规范性。
+
+
+
+## 58. select 执行顺序？
+
+#### **1. 书写顺序（我们写 SQL 的习惯）**
+
+```sql
+SELECT [DISTINCT] 列1, 列2, 聚合函数()
+FROM 表名
+JOIN 关联表 ON 关联条件
+WHERE 行筛选条件
+GROUP BY 分组列
+HAVING 分组筛选条件
+ORDER BY 排序列 [ASC/DESC]
+LIMIT 分页参数;
+```
+
+#### **2. 实际执行顺序（数据库引擎的执行流程）**
+
+```markdown
+1. FROM → 2. JOIN → 3. ON → 4. WHERE → 5. GROUP BY → 6. HAVING → 7. SELECT → 8. DISTINCT → 9. ORDER BY → 10. LIMIT
+```
+
+#### **3. 逐步骤拆解**
+
+```sql
+sql
+SELECT 
+    u.user_id, 
+    COUNT(o.order_id) AS order_count  -- 7. SELECT
+FROM 
+    users u  -- 1. FROM
+JOIN 
+    orders o  -- 2. JOIN
+ON 
+    u.user_id = o.user_id  -- 3. ON
+WHERE 
+    u.age > 20  -- 4. WHERE
+GROUP BY 
+    u.user_id  -- 5. GROUP BY
+HAVING 
+    COUNT(o.order_id) > 1  -- 6. HAVING
+ORDER BY 
+    order_count DESC  -- 9. ORDER BY
+LIMIT 
+    10;  -- 10. LIMIT
+```
+
+
+
+## 59. MySQL的blog主要用途？以及和text、json的区别？
+
+#### 一、BLOB 的核心用途（大白话）
+
+BLOB（Binary Large Object）是 MySQL 专门用来**存储二进制大文件**的类型，简单说就是存 “非文字、不可直接阅读” 的字节数据，核心用途：
+
+1. 存储小体积二进制文件：比如图片（头像、小图标）、音频片段、视频缩略图、PDF/Word 文档、压缩包（zip）等；
+2. 存储自定义二进制数据：比如加密后的敏感数据、设备采集的二进制日志、串口传输的字节流等。
+
+⚠️ 注意：MySQL 不推荐存大文件（如几百 M 的视频），通常只存小文件（几 K~ 几 M），大文件建议存服务器磁盘，数据库只存文件路径。
+
+#### 二、BLOB vs TEXT vs JSON 核心区别
+
+| 特性             | BLOB                          | TEXT                           | JSON                                         |
+| ---------------- | ----------------------------- | ------------------------------ | -------------------------------------------- |
+| 存储内容         | 二进制数据（不可直接读）      | 字符文本（可直接读）           | 结构化的 JSON 格式文本                       |
+| 核心用途         | 存图片、文档、二进制流等      | 存长文本（文章、日志、备注）   | 存键值对 / 数组等结构化数据                  |
+| 编码处理         | 不涉及字符编码（按字节存）    | 依赖字符集（如 UTF-8），需编码 | 依赖字符集，按 JSON 规则解析                 |
+| 检索能力         | 仅能整体匹配 / 对比，无法拆分 | 可模糊查询（LIKE）、全文索引   | 可按 KEY 提取值（->>）、JSON 索引            |
+| 大小限制（常规） | TINYBLOB(255B)~LONGBLOB(4G)   | TINYTEXT(255B)~LONGTEXT(4G)    | 同 TEXT（最大 4G，实际常用 MEDIUMTEXT 级别） |
+| 空值处理         | 区分 NULL / 空字节（''）      | 区分 NULL / 空字符串（''）     | 区分 NULL / 空 JSON（'{}'）                  |
+
+#### 三、通俗拆解差异（举例子）
+
+1. **BLOB**：存一张用户头像图片，数据库里是一堆 01 字节，直接查看不到内容，必须转成图片格式才能显示；
+2. **TEXT**：存一篇博客文章的正文，直接查能看到文字，还能搜 “文章中包含‘MySQL’的内容”（LIKE '% MySQL%'）；
+3. **JSON**：存用户的个性化设置，比如 `{"theme":"dark","fontSize":16,"notifications":true}`，能直接提取 `theme` 的值（`json_column->>'$.theme'`），不用自己拆分文本。

@@ -302,3 +302,34 @@ MyBatis 的缓存分为**一级缓存**和**二级缓存**，核心作用是减�
   - 缓存的对象需实现 `Serializable` 接口（二级缓存可能涉及序列化存储）。
 
   - 执行 `update`/`insert`/`delete` 时，会清空当前 Mapper 的二级缓存，以及对应的一级缓存。
+
+
+
+## 15. Mapper XML 文件对应 Dao 层方法能否重载
+
+MyBatis 的 Mapper 接口方法**不支持重载**；
+
+```java
+// 反例（直接重载会报错）
+public interface UserMapper {
+    // 方法1：根据ID查用户
+    User selectUser(Long id);
+    // 方法2：重载 - 根据ID+姓名查用户（参数个数不同）
+    User selectUser(Long id, String name);
+}
+```
+
+Mapper XML（无法区分两个 selectUser）：
+
+```xml
+<!-- 匹配第一个方法 -->
+<select id="selectUser" resultType="User">
+    select * from user where id = #{id}
+</select>
+<!-- 匹配第二个方法，但ID重复，启动报错 -->
+<select id="selectUser" resultType="User">
+    select * from user where id = #{id} and name = #{name}
+</select>
+```
+
+**核心原因：MyBatis 靠「方法名」而非「方法签名（名 + 参数）」绑定 SQL，重载方法会生成相同的 SQL 查找键，导致无法区分；**

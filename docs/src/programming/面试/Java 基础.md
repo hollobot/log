@@ -84,6 +84,12 @@ javac 编译工具也在jdk里面
 
 4、抽象。把客观事物用代码抽象出来。
 
+**手机 面向对象特征比喻？ 不用专业词语**
+
+- 封装：手机内部全藏起来，你只管用，不用懂原理。
+- 继承：新手机直接用上一代的功能，不用重做。
+- 多态：同一个按键，**点一下、长按、连按，做的事不一样**。
+
 
 
 ## 6. 数组到底是不是对象？
@@ -345,6 +351,73 @@ for (Integer value : values) {
 - toUpperCase()：将字符串转成大写字符。
 - substring()：截取字符串。
 - equals()：字符串比较。
+
+
+
+## 17-1.字符串分割多种字符规则的方法？
+
+#### 一、核心方法 1：原生 String.split () + 正则（推荐，无需额外依赖）
+
+Java 原生的 `split()` 方法支持正则表达式，用 `[]` 包裹所有分割符，即可匹配任意一个分割符拆分字符串，这是最基础也最常用的方式。
+
+```java
+String str = "Java,Python Go|C++ 前端,后端|移动端";
+String[] parts = str.split("[, |]");
+```
+
+#### 二、核心方法 3：Apache Commons Lang3（工具类，更简洁）
+
+步骤 1：添加依赖（Maven）
+
+```xml
+<dependency>
+    <groupId>org.apache.commons</groupId>
+    <artifactId>commons-lang3</artifactId>
+    <version>3.14.0</version>
+</dependency>
+```
+
+步骤 2：代码实现
+
+```java
+tring str = "Java,Python Go|C++ 前端,后端|移动端";
+// StringUtils.split(字符串, 分割符集合)
+// 第二个参数直接传所有分割符组成的字符串，自动匹配任意一个
+String[] parts = StringUtils.split(str, ", |");
+```
+
+#### 三、多次 split () 实现
+
+比如字符串 `Java,Python Go|C++ 前端,后端|移动端`，需求是：
+
+1. 第一步：先按逗号分割成大段 → `["Java", "Python Go|C++", "前端", "后端|移动端"]`；
+2. 第二步：对每个大段，再按空格 / 竖线分割成小段。
+
+```java
+public class MultiSplitDemo {
+    public static void main(String[] args) {
+        String str = "Java,Python Go|C++ 前端,后端|移动端";
+        
+        // 第一步：按逗号分割成大段
+        String[] bigParts = str.split(",");
+        
+        // 遍历每个大段，进行二次分割
+        for (String bigPart : bigParts) {
+            // 第二步：对每个大段，按空格/竖线分割成小段
+            String[] smallParts = bigPart.split("[ |]");
+            
+            // 输出结果（过滤空值）
+            for (String smallPart : smallParts) {
+                if (!smallPart.isEmpty()) {
+                    System.out.println(smallPart);
+                }
+            }
+        }
+    }
+}
+```
+
+
 
 
 
@@ -1666,6 +1739,59 @@ public interface Filter {
 - 多个过滤器的执行顺序由 `web.xml` 中 `<filter-mapping>` 的声明顺序或 `@WebFilter` 的 `order` 属性决定（值越小越先执行）。
 - 通过 `FilterChain.doFilter(request, response)` 调用下一个过滤器或目标资源，若不调用则请求被拦截。
 
+**实现方式**
+
+```java
+// 注解方式注册过滤器，urlPatterns 指定拦截的路径（/* 表示拦截所有请求）
+@WebFilter(filterName = "LogFilter", urlPatterns = "/*")
+public class LogFilter implements Filter {
+
+    /**
+     * 过滤器初始化方法（仅执行一次）
+     * 可在这里初始化资源，如配置加载、连接池初始化等
+     */
+    @Override
+    public void init(FilterConfig filterConfig) throws ServletException {
+        System.out.println("LogFilter 初始化");
+    }
+
+    /**
+     * 核心拦截方法（每次请求都会执行）
+     * request：请求对象；response：响应对象；chain：过滤器链（放行请求）
+     */
+    @Override
+    public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain) 
+            throws IOException, ServletException {
+        // 1. 前置处理：拦截请求，执行自定义逻辑（如记录请求信息）
+        HttpServletRequest httpRequest = (HttpServletRequest) request;
+        String requestUrl = httpRequest.getRequestURI();
+        String method = httpRequest.getMethod();
+        System.out.println("收到请求：" + method + " " + requestUrl);
+
+        try {
+            // 2. 放行请求：让请求继续走向下一个过滤器/目标资源（如 Controller）
+            chain.doFilter(request, response);
+        } finally {
+            // 3. 后置处理：响应返回时执行（如记录响应状态）
+            HttpServletResponse httpResponse = (HttpServletResponse) response;
+            int status = httpResponse.getStatus();
+            System.out.println("请求处理完成，响应状态：" + status);
+        }
+    }
+
+    /**
+     * 过滤器销毁方法（仅服务器关闭/应用卸载时执行）
+     * 可在这里释放资源，如关闭连接、清理缓存等
+     */
+    @Override
+    public void destroy() {
+        System.out.println("LogFilter 销毁");
+    }
+}
+```
+
+
+
 **2. 拦截器（Interceptor）**
 
 核心方法在 `org.springframework.web.servlet.HandlerInterceptor` 接口中定义：
@@ -1688,6 +1814,13 @@ public interface HandlerInterceptor {
 
 - 多个拦截器的执行顺序由 Spring 配置的 `order` 属性决定（值越小越先执行）。
 - `preHandle` 按顺序执行，`postHandle` 和 `afterCompletion` 按 **逆序** 执行（类似栈的先进后出）。
+
+**实现方式**
+
+```txt
+编写一个拦截器类添加@Component注解给spring管理
+然后再实现HandlerInterceptor接口并且重写它的方法
+```
 
 
 
@@ -2085,6 +2218,108 @@ Map<Integer, String> abnormalDaysMap = abnormalDays.stream()
 | **常用场景**      | 字符串内容比较  | 几乎不用于比较                |
 
 
+
+## 64. 字符流和字节流相互转换方法？
+
+#### 一、核心转换类（记住这 4 个就够了）
+
+Java 提供了专门的 “桥接类” 实现流的转换，核心是处理**字符编码**（如 UTF-8、GBK），这是转换的关键：
+
+| 转换方向              | 核心类                 | 作用                                                         |
+| --------------------- | ---------------------- | ------------------------------------------------------------ |
+| 字节流 → 字符流（读） | InputStreamReader      | 将字节输入流（如 FileInputStream）转为字符输入流（Reader），指定编码读取文本 |
+| 字节流 → 字符流（写） | OutputStreamWriter     | 将字节输出流（如 FileOutputStream）转为字符输出流（Writer），指定编码写入文本 |
+| 字符流 → 字节流（读） | 无直接桥接类（需间接） | 先通过字符流读取文本，再转为字节数组                         |
+| 字符流 → 字节流（写） | 无直接桥接类（需间接） | 先将文本转为字节数组，再写入字节输出流                       |
+
+#### 二、具体转换方法（核心代码）
+
+##### 场景 1：字节输入流 → 字符输入流（读取带编码的文本文件）
+
+比如用 FileInputStream（字节流）读取 UTF-8 编码的文本文件，转为 InputStreamReader（字符流）：
+
+```java
+public class ByteToCharRead {
+    public static void main(String[] args) {
+        // 1. 定义字节输入流（读取文件的字节）
+        try (FileInputStream fis = new FileInputStream("test.txt");
+             // 2. 转换为字符输入流，指定编码（关键！避免乱码）
+             InputStreamReader isr = new InputStreamReader(fis, "UTF-8");
+             // 3. 包装为 BufferedReader 方便按行读取（可选，优化读取效率）
+             BufferedReader br = new BufferedReader(isr)) {
+
+            String line;
+            // 按行读取文本（字符流的优势）
+            while ((line = br.readLine()) != null) {
+                System.out.println(line);
+            }
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+}
+```
+
+**场景 2：字节输出流 → 字符输出流（写入带编码的文本文件）**
+
+比如用 FileOutputStream（字节流）写入文本，转为 OutputStreamWriter（字符流）指定 UTF-8 编码：
+
+```java
+public class ByteToCharWrite {
+    public static void main(String[] args) {
+        String content = "你好，Java IO 流转换！";
+        
+        try (FileOutputStream fos = new FileOutputStream("output.txt");
+             // 转换为字符输出流，指定编码
+             OutputStreamWriter osw = new OutputStreamWriter(fos, "UTF-8");
+             // 包装为 BufferedWriter 优化写入效率（可选）
+             BufferedWriter bw = new BufferedWriter(osw)) {
+
+            // 写入文本（字符流直接写字符串，无需转字节）
+            bw.write(content);
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+}
+```
+
+**场景3：字符输入流 → 字节输出流（读取文本，转为字节写入）**
+
+Java 没有直接的 “字符流转字节流” 桥接类，需先将字符流读取的文本转为字节数组，再写入字节流：
+
+```java
+public class CharToByte {
+    public static void main(String[] args) {
+        // 1. 字符输入流（示例用 StringReader，也可以是 FileReader）
+        String text = "字符流转字节流示例";
+        try (StringReader sr = new StringReader(text);
+             // 2. 字节输出流（示例用 ByteArrayOutputStream，也可以是 FileOutputStream）
+             ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+
+            char[] buffer = new char[1024];
+            int len;
+            // 3. 从字符流读取字符，转为字节数组
+            while ((len = sr.read(buffer)) != -1) {
+                // 将字符数组转为字符串，再按指定编码转字节数组
+                String temp = new String(buffer, 0, len);
+                byte[] bytes = temp.getBytes("UTF-8");
+                // 4. 写入字节输出流
+                baos.write(bytes);
+            }
+
+            // 获取最终的字节数组（可写入文件/网络流等）
+            byte[] result = baos.toByteArray();
+            System.out.println(new String(result, "UTF-8")); // 验证：输出原文本
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+}
+```
 
 
 
